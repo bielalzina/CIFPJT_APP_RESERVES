@@ -21,23 +21,35 @@ const AuthService = {
   },
 
   /**
-   * Retrieves the user record from the repository.
-   * @param {string} email 
-   * @returns {Object|null}
-   */
-  getUserRecord: function(email) {
-    if (!email) return null;
-    return UsersRepo.getByEmail(email) || null;
-  },
-
-  /**
-   * Checks if the user is an administrator.
+   * Checks if the user is an administrator via Google Groups.
    * @param {string} email 
    * @returns {boolean}
    */
   isAdmin: function(email) {
-    const user = this.getUserRecord(email);
-    return user && ValidationService.parseActiveFlag(user.active) && user.role === CONFIG.ROLES.ADMIN;
+    if (!email) return false;
+    try {
+      const group = GroupsApp.getGroupByEmail(CONFIG.GROUPS.ADMIN);
+      return group ? group.hasUser(email) : false;
+    } catch (e) {
+      console.warn("Fallo en verificar el grup d'admins: " + e.message);
+      return false;
+    }
+  },
+
+  /**
+   * Checks if the user is a teacher via Google Groups.
+   * @param {string} email 
+   * @returns {boolean}
+   */
+  isTeacher: function(email) {
+    if (!email) return false;
+    try {
+      const group = GroupsApp.getGroupByEmail(CONFIG.GROUPS.TEACHER);
+      return group ? group.hasUser(email) : false;
+    } catch (e) {
+      console.warn("Fallo en verificar el grup de professors: " + e.message);
+      return false;
+    }
   },
 
   /**
@@ -46,9 +58,7 @@ const AuthService = {
    * @returns {boolean}
    */
   canReserve: function(email) {
-    const user = this.getUserRecord(email);
-    if (!user || !ValidationService.parseActiveFlag(user.active)) return false;
-    return user.role === CONFIG.ROLES.ADMIN || user.role === CONFIG.ROLES.TEACHER;
+    return this.isAdmin(email) || this.isTeacher(email);
   },
   
   /**

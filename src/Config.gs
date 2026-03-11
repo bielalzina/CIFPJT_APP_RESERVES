@@ -8,8 +8,12 @@ const CONFIG = {
   SHEETS: {
     RESOURCES: 'Resources',
     RESERVATIONS: 'Reservations',
-    RESTRICTIONS: 'Restrictions',
-    USERS: 'Users'
+    RESTRICTIONS: 'Restrictions'
+  },
+  
+  GROUPS: {
+    ADMIN: 'admin.users@cifpjoantaix.cat',
+    TEACHER: 'professorat@cifpjoantaix.cat'
   },
   
   // Allowed resource types: 'classroom', 'auditorium', 'laptop_cart'
@@ -55,11 +59,6 @@ const CONFIG = {
       'dayOfWeek', 
       'timeSlot', 
       'description'
-    ],
-    USERS: [
-      'email', 
-      'role', 
-      'active'
     ]
   }
 };

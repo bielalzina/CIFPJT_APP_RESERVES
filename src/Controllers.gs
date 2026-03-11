@@ -61,14 +61,19 @@ function withErrorHandling_(callback) {
 function getCurrentUserInfo() {
   return withErrorHandling_(function() {
     const email = AuthService.getCurrentUserEmail();
-    const user = AuthService.getUserRecord(email);
+    const isAdmin = AuthService.isAdmin(email);
+    const isTeacher = AuthService.isTeacher(email);
+    
+    let role = null;
+    if (isAdmin) role = CONFIG.ROLES.ADMIN;
+    else if (isTeacher) role = CONFIG.ROLES.TEACHER;
     
     return {
       email: email,
-      role: user ? user.role : null,
-      isActive: user ? ValidationService.parseActiveFlag(user.active) : false,
-      canReserve: AuthService.canReserve(email),
-      isAdmin: AuthService.isAdmin(email)
+      role: role,
+      isActive: isAdmin || isTeacher,
+      canReserve: isAdmin || isTeacher,
+      isAdmin: isAdmin
     };
   });
 }

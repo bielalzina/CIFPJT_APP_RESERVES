@@ -243,40 +243,6 @@ function createBaseRepository(sheetName, schemaHeaders) {
 // SPECIFIC REPOSITORIES
 // ==========================================
 
-const UsersRepo = {
-  ...createBaseRepository(CONFIG.SHEETS.USERS, CONFIG.SCHEMAS.USERS),
-  
-  // Override ID-based methods as Users use email as primary key
-  getById: undefined,
-  update: undefined,
-  delete: undefined,
-  
-  getByEmail: function(email) {
-    return this.getAll().find(u => u.email === email);
-  },
-
-  create: function(userObj) {
-    if (this.getByEmail(userObj.email)) throw new Error('User already exists');
-    return createRow_(this.sheetName, this.headers, userObj);
-  },
-
-  updateByEmail: function(email, updateObj) {
-    const users = this.getAll();
-    const user = users.find(u => u.email === email);
-    if (!user) throw new Error('User not found');
-
-    const updatedUser = { ...user, ...updateObj, email: email };
-    delete updatedUser._rowIndex;
-    
-    return updateRow_(this.sheetName, this.headers, user._rowIndex, updatedUser);
-  },
-  
-  deleteByEmail: function(email) {
-    const user = this.getByEmail(email);
-    if (!user) throw new Error('User not found');
-    deleteRow_(this.sheetName, user._rowIndex);
-  }
-};
 
 
 const ResourcesRepo = {
