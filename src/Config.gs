@@ -1,6 +1,6 @@
 /**
  * src/Config.gs
- * Centralized configuration for the Reservation System.
+ * Centralized configuration for the Reservation System CIFPJT
  * Defines sheet names, time slots, roles, and schema requirements.
  */
 

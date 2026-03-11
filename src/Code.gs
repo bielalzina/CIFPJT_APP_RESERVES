@@ -1,6 +1,6 @@
 /**
  * src/Code.gs
- * Application Entry Point for the Reservation System CIFP JT.
+ * Application Entry Point for the Reservation System.
  */
 
 /**

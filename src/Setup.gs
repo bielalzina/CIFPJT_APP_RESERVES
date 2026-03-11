@@ -3,6 +3,7 @@
  * Setup and bootstrap utilities for the Reservation System.
  * Run `setupSystem` from the Apps Script editor to initialize the active spreadsheet 
  * with the required sheets and headers based on CONFIG.
+ * CIFP JT
  */
 
 function setupSystem() {

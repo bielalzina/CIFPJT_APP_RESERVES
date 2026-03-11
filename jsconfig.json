@@ -1,19 +1,15 @@
 {
   "compilerOptions": {
-    "target": "ES2015",
-    "lib": [
-      "ES2015"
-    ],
-    "checkJs": false
+    "target": "ES6",
+    "module": "commonjs",
+    "allowSyntheticDefaultImports": true
   },
   "include": [
     "**/*.js",
     "**/*.gs"
   ],
-  "exclude": [
-    "node_modules"
-  ],
   "typeAcquisition": {
+    "enable": true,
     "include": [
       "google-apps-script"
     ]

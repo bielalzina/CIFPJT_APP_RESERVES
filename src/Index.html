@@ -1,206 +1,209 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <base target="_top">
-    <?!= include('Stylesheet'); ?>
-    <!-- Import Google Fonts: Inter -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-  </head>
-  <body>
-    <!-- Top Navigation -->
-    <header class="navbar">
-      <div class="container navbar-inner">
-        <h1>Sistema de Reserves</h1>
-        <div id="user-context" class="user-context">
-          <span id="user-email">Carregant...</span>
-          <span id="user-role-badge" class="badge hidden"></span>
-        </div>
+
+<head>
+  <base target="_top">
+  <?!= include('Stylesheet'); ?>
+  <!-- Import Google Fonts: Inter -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+
+<body>
+  <!-- Top Navigation -->
+  <header class="navbar">
+    <div class="container navbar-inner">
+      <h1>Sistema de Reserves</h1>
+      <div id="user-context" class="user-context">
+        <span id="user-email">Carregant...</span>
+        <span id="user-role-badge" class="badge hidden"></span>
       </div>
-    </header>
+    </div>
+  </header>
 
-    <!-- Main Content Area (Hidden until context loads) -->
-    <main class="container hidden" id="main-content">
-      
-      <!-- Notifications System -->
-      <div id="notification-area"></div>
+  <!-- Main Content Area (Hidden until context loads) -->
+  <main class="container hidden" id="main-content">
 
-      <!-- Tab Navigation -->
-      <nav class="tabs">
-        <button class="tab-btn active" data-target="tab-browser">Explorar i Reservar</button>
-        <button class="tab-btn" data-target="tab-my-reservations">Les Meves Reserves</button>
-        <button class="tab-btn hidden" id="tab-btn-admin" data-target="tab-admin">Opcions d'Administrador</button>
-      </nav>
+    <!-- Notifications System -->
+    <div id="notification-area"></div>
 
-      <!-- TAB: Browse & Reserve -->
-      <section id="tab-browser" class="tab-content active">
-        <div class="grid layout-main">
-          <!-- Resource List -->
-          <div class="panel list-panel">
-            <h2>Recursos Disponibles</h2>
-            <div id="resource-list" class="resource-cards">
-              <div class="loading-spinner"></div>
-            </div>
-          </div>
+    <!-- Tab Navigation -->
+    <nav class="tabs">
+      <button class="tab-btn active" data-target="tab-browser">Explorar i Reservar</button>
+      <button class="tab-btn" data-target="tab-my-reservations">Les Meves Reserves</button>
+      <button class="tab-btn hidden" id="tab-btn-admin" data-target="tab-admin">Opcions d'Administrador</button>
+    </nav>
 
-          <!-- Availability & Reserve Form -->
-          <div class="panel form-panel">
-            <h2>Comprova Disponibilitat</h2>
-            <form id="check-form">
-              <input type="hidden" id="check-resource-id">
-              
-              <div class="form-group">
-                <label>Recurs Seleccionat</label>
-                <input type="text" id="check-resource-name" readonly placeholder="Selecciona un recurs a l'esquerra..." class="readonly-input">
-              </div>
-              
-              <div class="form-group row">
-                <div class="col">
-                  <label for="check-date">Data</label>
-                  <input type="date" id="check-date" required>
-                  <small class="hint">Nomes de dilluns a divendres</small>
-                </div>
-                <div class="col">
-                  <label for="check-slot">Franja Horària</label>
-                  <select id="check-slot" required>
-                    <option value="">-- Selecciona --</option>
-                    <option value="08:00-09:00">08:00 - 09:00</option>
-                    <option value="09:00-10:00">09:00 - 10:00</option>
-                    <option value="10:00-11:00">10:00 - 11:00</option>
-                    <option value="11:00-12:00">11:00 - 12:00</option>
-                    <option value="12:00-13:00">12:00 - 13:00</option>
-                    <option value="13:00-14:00">13:00 - 14:00</option>
-                    <option value="14:00-15:00">14:00 - 15:00</option>
-                  </select>
-                </div>
-              </div>
-              
-              <div class="form-group" id="qty-wrapper">
-                <label for="check-qty">Quantitat</label>
-                <input type="number" id="check-qty" min="1" value="1" required>
-                <small class="hint" id="qty-hint">Per quantitats (ex. Portàtils)</small>
-              </div>
-
-              <div class="form-group" id="comment-wrapper">
-                <label for="check-comment">Motiu de la reserva</label>
-                <input type="text" id="check-comment" required placeholder="Escriu el motiu de la teva reserva">
-              </div>
-              
-              <button type="submit" class="btn btn-primary" id="btn-check" disabled>Comprova Disponibilitat</button>
-            </form>
-
-            <div id="availability-result" class="hidden result-box">
-              <h4 id="avail-status-title"></h4>
-              <p id="avail-message"></p>
-              <button id="btn-reserve" class="btn btn-success hidden">Crear Reserva</button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- TAB: My Reservations -->
-      <section id="tab-my-reservations" class="tab-content">
-        <div class="panel header-panel">
-          <h2>Les Meves Reserves</h2>
-          <button class="btn btn-secondary btn-sm" id="btn-refresh-reservations">Refresca</button>
-        </div>
-        <div class="panel">
-          <div id="my-reservations-list">
+    <!-- TAB: Browse & Reserve -->
+    <section id="tab-browser" class="tab-content active">
+      <div class="grid layout-main">
+        <!-- Resource List -->
+        <div class="panel list-panel">
+          <h2>Recursos Disponibles</h2>
+          <div id="resource-list" class="resource-cards">
             <div class="loading-spinner"></div>
           </div>
         </div>
-      </section>
 
-      <!-- TAB: Admin -->
-      <section id="tab-admin" class="tab-content">
-        <div class="panel header-panel">
-          <h2>Tauler d'Administrador</h2>
-          <button class="btn btn-secondary btn-sm" id="btn-refresh-admin">Refresca Dades</button>
-        </div>
-        
-        <div class="grid layout-admin">
-          <!-- Manage Resources -->
-          <div class="panel">
-            <h3>Recursos</h3>
-            <div id="admin-resource-list" class="admin-list">
-              <div class="loading-spinner"></div>
-            </div>
-            
-            <hr class="separator">
-            
-            <h4>Afegir Nou Recurs</h4>
-            <form id="admin-add-resource-form">
-              <div class="form-group row">
-                <div class="col" style="flex: 2;">
-                  <label>Nom</label>
-                  <input type="text" id="admin-res-name" required>
-                </div>
-              </div>
-              <div class="form-group row">
-                <div class="col">
-                  <label>Tipus</label>
-                  <select id="admin-res-type" required>
-                    <option value="classroom">Aula</option>
-                    <option value="auditorium">Saló d'Actes</option>
-                    <option value="laptop_cart">Carro de Portàtils</option>
-                  </select>
-                </div>
-                <div class="col">
-                  <label>Capacitat Total</label>
-                  <input type="number" id="admin-res-cap" min="1" value="1" required>
-                </div>
-              </div>
-              <button type="submit" class="btn btn-primary btn-sm">Crea Recurs</button>
-            </form>
-          </div>
+        <!-- Availability & Reserve Form -->
+        <div class="panel form-panel">
+          <h2>Comprova Disponibilitat</h2>
+          <form id="check-form">
+            <input type="hidden" id="check-resource-id">
 
-          <!-- Manage Restrictions -->
-          <div class="panel">
-            <h3>Restriccions Setmanals</h3>
-            <div id="admin-restriction-list" class="admin-list">
-              <div class="loading-spinner"></div>
+            <div class="form-group">
+              <label>Recurs Seleccionat</label>
+              <input type="text" id="check-resource-name" readonly placeholder="Selecciona un recurs a l'esquerra..."
+                class="readonly-input">
             </div>
-            
-            <hr class="separator">
-            
-            <h4>Afegir Restricció Setmanal</h4>
-            <form id="admin-add-restriction-form">
-              <div class="form-group">
-                <label>Recurs</label>
-                <select id="admin-rest-resource" required></select>
+
+            <div class="form-group row">
+              <div class="col">
+                <label for="check-date">Data</label>
+                <input type="date" id="check-date" required>
+                <small class="hint">Nomes de dilluns a divendres</small>
               </div>
-              <div class="form-group row">
-                <div class="col">
-                  <label>Dia de la Setmana</label>
-                  <select id="admin-rest-day" required>
-                    <option value="1">Dilluns</option>
-                    <option value="2">Dimarts</option>
-                    <option value="3">Dimecres</option>
-                    <option value="4">Dijous</option>
-                    <option value="5">Divendres</option>
-                  </select>
-                </div>
-                <div class="col">
-                  <label>Franges Horàries Bloquejades <br><small>(Ctrl+Click per múltiple)</small></label>
-                  <select id="admin-rest-slots" multiple required size="7" class="multi-select">
-                    <option value="08:00-09:00">08:00 - 09:00</option>
-                    <option value="09:00-10:00">09:00 - 10:00</option>
-                    <option value="10:00-11:00">10:00 - 11:00</option>
-                    <option value="11:00-12:00">11:00 - 12:00</option>
-                    <option value="12:00-13:00">12:00 - 13:00</option>
-                    <option value="13:00-14:00">13:00 - 14:00</option>
-                    <option value="14:00-15:00">14:00 - 15:00</option>
-                  </select>
-                </div>
+              <div class="col">
+                <label for="check-slot">Franja Horària</label>
+                <select id="check-slot" required>
+                  <option value="">-- Selecciona --</option>
+                  <option value="08:00-09:00">08:00 - 09:00</option>
+                  <option value="09:00-10:00">09:00 - 10:00</option>
+                  <option value="10:00-11:00">10:00 - 11:00</option>
+                  <option value="11:00-12:00">11:00 - 12:00</option>
+                  <option value="12:00-13:00">12:00 - 13:00</option>
+                  <option value="13:00-14:00">13:00 - 14:00</option>
+                  <option value="14:00-15:00">14:00 - 15:00</option>
+                </select>
               </div>
-              <div class="form-group">
-                <label>Descripció (Motiu)</label>
-                <input type="text" id="admin-rest-desc" required placeholder="ex. Manteniment">
-              </div>
-              <button type="submit" class="btn btn-primary btn-sm">Crea Restricciò(ns)</button>
-            </form>
+            </div>
+
+            <div class="form-group" id="qty-wrapper">
+              <label for="check-qty">Quantitat</label>
+              <input type="number" id="check-qty" min="1" value="1" required>
+              <small class="hint" id="qty-hint">Per quantitats (ex. Portàtils)</small>
+            </div>
+
+            <div class="form-group" id="comment-wrapper">
+              <label for="check-comment">Motiu de la reserva</label>
+              <input type="text" id="check-comment" required placeholder="Escriu el motiu de la teva reserva">
+            </div>
+
+            <button type="submit" class="btn btn-primary" id="btn-check" disabled>Comprova Disponibilitat</button>
+          </form>
+
+          <div id="availability-result" class="hidden result-box">
+            <h4 id="avail-status-title"></h4>
+            <p id="avail-message"></p>
+            <button id="btn-reserve" class="btn btn-success hidden">Crear Reserva</button>
           </div>
         </div>
-      </section>
+      </div>
+    </section>
+
+    <!-- TAB: My Reservations -->
+    <section id="tab-my-reservations" class="tab-content">
+      <div class="panel header-panel">
+        <h2>Les Meves Reserves</h2>
+        <button class="btn btn-secondary btn-sm" id="btn-refresh-reservations">Refresca</button>
+      </div>
+      <div class="panel">
+        <div id="my-reservations-list">
+          <div class="loading-spinner"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB: Admin -->
+    <section id="tab-admin" class="tab-content">
+      <div class="panel header-panel">
+        <h2>Tauler d'Administrador</h2>
+        <button class="btn btn-secondary btn-sm" id="btn-refresh-admin">Refresca Dades</button>
+      </div>
+
+      <div class="grid layout-admin">
+        <!-- Manage Resources -->
+        <div class="panel">
+          <h3>Recursos</h3>
+          <div id="admin-resource-list" class="admin-list">
+            <div class="loading-spinner"></div>
+          </div>
+
+          <hr class="separator">
+
+          <h4>Afegir Nou Recurs</h4>
+          <form id="admin-add-resource-form">
+            <div class="form-group row">
+              <div class="col" style="flex: 2;">
+                <label>Nom</label>
+                <input type="text" id="admin-res-name" required>
+              </div>
+            </div>
+            <div class="form-group row">
+              <div class="col">
+                <label>Tipus</label>
+                <select id="admin-res-type" required>
+                  <option value="classroom">Aula</option>
+                  <option value="auditorium">Saló d'Actes</option>
+                  <option value="laptop_cart">Carro de Portàtils</option>
+                </select>
+              </div>
+              <div class="col">
+                <label>Capacitat Total</label>
+                <input type="number" id="admin-res-cap" min="1" value="1" required>
+              </div>
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm">Crea Recurs</button>
+          </form>
+        </div>
+
+        <!-- Manage Restrictions -->
+        <div class="panel">
+          <h3>Restriccions Setmanals</h3>
+          <div id="admin-restriction-list" class="admin-list">
+            <div class="loading-spinner"></div>
+          </div>
+
+          <hr class="separator">
+
+          <h4>Afegir Restricció Setmanal</h4>
+          <form id="admin-add-restriction-form">
+            <div class="form-group">
+              <label>RECURS</label>
+              <select id="admin-rest-resource" required></select>
+            </div>
+            <div class="form-group row">
+              <div class="col">
+                <label>Dia de la Setmana</label>
+                <select id="admin-rest-day" required>
+                  <option value="1">Dilluns</option>
+                  <option value="2">Dimarts</option>
+                  <option value="3">Dimecres</option>
+                  <option value="4">Dijous</option>
+                  <option value="5">Divendres</option>
+                </select>
+              </div>
+              <div class="col">
+                <label>Franges Horàries Bloquejades <br><small>(Ctrl+Click per múltiple)</small></label>
+                <select id="admin-rest-slots" multiple required size="7" class="multi-select">
+                  <option value="08:00-09:00">08:00 - 09:00</option>
+                  <option value="09:00-10:00">09:00 - 10:00</option>
+                  <option value="10:00-11:00">10:00 - 11:00</option>
+                  <option value="11:00-12:00">11:00 - 12:00</option>
+                  <option value="12:00-13:00">12:00 - 13:00</option>
+                  <option value="13:00-14:00">13:00 - 14:00</option>
+                  <option value="14:00-15:00">14:00 - 15:00</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Descripció (Motiu)</label>
+              <input type="text" id="admin-rest-desc" required placeholder="ex. Manteniment">
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm">Crea Restricciò(ns)</button>
+          </form>
+        </div>
+      </div>
+    </section>
 
     <!-- Edit Modal Overlay -->
     <div id="edit-modal-overlay" class="overlay hidden">
@@ -218,24 +221,25 @@
       </div>
     </div>
 
-    </main>
+  </main>
 
-    <!-- Initial Loading Overlay -->
-    <div id="loading-overlay" class="overlay">
-      <div class="overlay-content">
-        <div class="loading-spinner large"></div>
-        <p>Inicialitzant l'Aplicació...</p>
-      </div>
+  <!-- Initial Loading Overlay -->
+  <div id="loading-overlay" class="overlay">
+    <div class="overlay-content">
+      <div class="loading-spinner large"></div>
+      <p>Inicialitzant l'Aplicació...</p>
     </div>
+  </div>
 
-    <!-- Fatal Error Overlay -->
-    <div id="fatal-error-overlay" class="overlay hidden">
-      <div class="overlay-content error-box">
-        <h2>Accés Denegat</h2>
-        <p id="fatal-error-msg"></p>
-      </div>
+  <!-- Fatal Error Overlay -->
+  <div id="fatal-error-overlay" class="overlay hidden">
+    <div class="overlay-content error-box">
+      <h2>Accés Denegat</h2>
+      <p id="fatal-error-msg"></p>
     </div>
+  </div>
 
-    <?!= include('JavaScript'); ?>
-  </body>
+  <?!= include('JavaScript'); ?>
+</body>
+
 </html>

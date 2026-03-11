@@ -1,329 +1,329 @@
 <script>
-/**
- * Frontend Application Logic
- */
+  /**
+   * Frontend Application Logic
+   */
 
-// Global State
-const APP = {
-  user: null,
-  resources: [],
-  selectedResource: null,
-  lastCheckParams: null,
-  myReservations: [],
-  adminResources: [],
-  adminRestrictions: []
-};
+  // Global State
+  const APP = {
+    user: null,
+    resources: [],
+    selectedResource: null,
+    lastCheckParams: null,
+    myReservations: [],
+    adminResources: [],
+    adminRestrictions: []
+  };
 
-// ==========================================
-// INITIALIZATION
-// ==========================================
+  // ==========================================
+  // INITIALIZATION
+  // ==========================================
 
-document.addEventListener('DOMContentLoaded', () => {
-  initUI();
-  fetchContext();
-});
+  document.addEventListener('DOMContentLoaded', () => {
+    initUI();
+    fetchContext();
+  });
 
-function initUI() {
-  // Tab switching (Fixed to use currentTarget to prevent bubbled inner node clicks)
-  document.querySelectorAll('.tab-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.preventDefault();
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-      
-      const currentBtn = e.currentTarget;
-      currentBtn.classList.add('active');
-      const targetId = currentBtn.getAttribute('data-target');
-      document.getElementById(targetId).classList.add('active');
-      
-      // Lazy load tab data
-      if (targetId === 'tab-my-reservations') loadMyReservations();
-      if (targetId === 'tab-admin') loadAdminData();
+  function initUI() {
+    // Tab switching (Fixed to use currentTarget to prevent bubbled inner node clicks)
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+        const currentBtn = e.currentTarget;
+        currentBtn.classList.add('active');
+        const targetId = currentBtn.getAttribute('data-target');
+        document.getElementById(targetId).classList.add('active');
+
+        // Lazy load tab data
+        if (targetId === 'tab-my-reservations') loadMyReservations();
+        if (targetId === 'tab-admin') loadAdminData();
+      });
     });
-  });
 
-  // Forms
-  document.getElementById('check-form').addEventListener('submit', handleCheckAvailability);
-  document.getElementById('btn-reserve').addEventListener('click', handleCreateReservation);
-  document.getElementById('admin-add-resource-form').addEventListener('submit', handleCreateResource);
-  document.getElementById('admin-add-restriction-form').addEventListener('submit', handleCreateRestriction);
-  
-  // Refreshers
-  document.getElementById('btn-refresh-reservations').addEventListener('click', loadMyReservations);
-  document.getElementById('btn-refresh-admin').addEventListener('click', loadAdminData);
+    // Forms
+    document.getElementById('check-form').addEventListener('submit', handleCheckAvailability);
+    document.getElementById('btn-reserve').addEventListener('click', handleCreateReservation);
+    document.getElementById('admin-add-resource-form').addEventListener('submit', handleCreateResource);
+    document.getElementById('admin-add-restriction-form').addEventListener('submit', handleCreateRestriction);
 
-  // Set minimum date for datetime picker
-  const today = new Date().toISOString().split('T')[0];
-  document.getElementById('check-date').setAttribute('min', today);
-}
+    // Refreshers
+    document.getElementById('btn-refresh-reservations').addEventListener('click', loadMyReservations);
+    document.getElementById('btn-refresh-admin').addEventListener('click', loadAdminData);
 
-// ==========================================
-// CORE API HELPERS
-// ==========================================
+    // Set minimum date for datetime picker
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('check-date').setAttribute('min', today);
+  }
 
-function apiCall(functionName, args = []) {
-  return new Promise((resolve, reject) => {
-    google.script.run
-      .withSuccessHandler((responseString) => {
-        try {
-          const res = JSON.parse(responseString);
-          if (res.success) {
-            resolve(res.data);
-          } else {
-            reject(new Error(res.message));
+  // ==========================================
+  // CORE API HELPERS
+  // ==========================================
+
+  function apiCall(functionName, args = []) {
+    return new Promise((resolve, reject) => {
+      google.script.run
+        .withSuccessHandler((responseString) => {
+          try {
+            const res = JSON.parse(responseString);
+            if (res.success) {
+              resolve(res.data);
+            } else {
+              reject(new Error(res.message));
+            }
+          } catch (e) {
+            reject(new Error("Failed to parse server response."));
           }
-        } catch (e) {
-          reject(new Error("Failed to parse server response."));
-        }
-      })
-      .withFailureHandler((error) => {
-        reject(new Error("Network or server failure."));
-      })
+        })
+        .withFailureHandler((error) => {
+          reject(new Error("Network or server failure."));
+        })
       [functionName].apply(null, args);
-  });
-}
+    });
+  }
 
-function showToast(message, type = 'success') {
-  const area = document.getElementById('notification-area');
-  const toast = document.createElement('div');
-  toast.className = `toast ${type}`;
-  toast.innerText = message;
-  area.appendChild(toast);
-  setTimeout(() => { toast.remove(); }, 4000);
-}
+  function showToast(message, type = 'success') {
+    const area = document.getElementById('notification-area');
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.innerText = message;
+    area.appendChild(toast);
+    setTimeout(() => { toast.remove(); }, 4000);
+  }
 
-function closeEditModal() {
-  document.getElementById('edit-modal-overlay').classList.add('hidden');
-  document.getElementById('edit-modal-body').innerHTML = '';
-  document.getElementById('edit-modal-form').onsubmit = null;
-}
+  function closeEditModal() {
+    document.getElementById('edit-modal-overlay').classList.add('hidden');
+    document.getElementById('edit-modal-body').innerHTML = '';
+    document.getElementById('edit-modal-form').onsubmit = null;
+  }
 
-// ==========================================
-// AUTH & CONTEXT
-// ==========================================
+  // ==========================================
+  // AUTH & CONTEXT
+  // ==========================================
 
-async function fetchContext() {
-  try {
-    APP.user = await apiCall('getCurrentUserInfo');
-    
-    // Render Header
-    document.getElementById('user-email').innerText = APP.user.email;
-    const badge = document.getElementById('user-role-badge');
-    if (APP.user.role) {
-      badge.innerText = APP.user.role;
-      badge.classList.add(APP.user.role);
-      badge.classList.remove('hidden');
-    }
+  async function fetchContext() {
+    try {
+      APP.user = await apiCall('getCurrentUserInfo');
 
-    if (!APP.user.canReserve) {
-      document.getElementById('fatal-error-msg').innerText = "No tens permís per utilitzar el sistema de reserves.";
+      // Render Header
+      document.getElementById('user-email').innerText = APP.user.email;
+      const badge = document.getElementById('user-role-badge');
+      if (APP.user.role) {
+        badge.innerText = APP.user.role;
+        badge.classList.add(APP.user.role);
+        badge.classList.remove('hidden');
+      }
+
+      if (!APP.user.canReserve) {
+        document.getElementById('fatal-error-msg').innerText = "No tens permís per utilitzar el sistema de reserves.";
+        document.getElementById('fatal-error-overlay').classList.remove('hidden');
+        document.getElementById('loading-overlay').classList.add('hidden');
+        return;
+      }
+
+      if (APP.user.isAdmin) {
+        document.getElementById('tab-btn-admin').classList.remove('hidden');
+      }
+
+      // Success: Unlock UI
+      document.getElementById('loading-overlay').classList.add('hidden');
+      document.getElementById('main-content').classList.remove('hidden');
+
+      // Initial fetch
+      loadResources();
+
+    } catch (error) {
+      document.getElementById('fatal-error-msg').innerText = "Error d'autenticació de la sessió: " + error.message;
       document.getElementById('fatal-error-overlay').classList.remove('hidden');
       document.getElementById('loading-overlay').classList.add('hidden');
-      return;
     }
-
-    if (APP.user.isAdmin) {
-      document.getElementById('tab-btn-admin').classList.remove('hidden');
-    }
-
-    // Success: Unlock UI
-    document.getElementById('loading-overlay').classList.add('hidden');
-    document.getElementById('main-content').classList.remove('hidden');
-    
-    // Initial fetch
-    loadResources();
-
-  } catch (error) {
-    document.getElementById('fatal-error-msg').innerText = "Error d'autenticació de la sessió: " + error.message;
-    document.getElementById('fatal-error-overlay').classList.remove('hidden');
-    document.getElementById('loading-overlay').classList.add('hidden');
   }
-}
 
-// ==========================================
-// BROWSE & RESERVE TAB
-// ==========================================
+  // ==========================================
+  // BROWSE & RESERVE TAB
+  // ==========================================
 
-async function loadResources() {
-  const listEl = document.getElementById('resource-list');
-  try {
-    APP.resources = await apiCall('listReservableResources');
-    APP.resources.sort((a, b) => a.name.localeCompare(b.name));
-    listEl.innerHTML = '';
-    
-    if (APP.resources.length === 0) {
-      listEl.innerHTML = '<p class="hint">No hi ha recursos disponibles actualment.</p>';
-      return;
-    }
+  async function loadResources() {
+    const listEl = document.getElementById('resource-list');
+    try {
+      APP.resources = await apiCall('listReservableResources');
+      APP.resources.sort((a, b) => a.name.localeCompare(b.name));
+      listEl.innerHTML = '';
 
-    APP.resources.forEach(res => {
-      const card = document.createElement('div');
-      card.className = 'resource-card';
-      card.onclick = () => selectResource(res.id, card);
-      
-      const typeLabel = res.type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
-      
-      card.innerHTML = `
+      if (APP.resources.length === 0) {
+        listEl.innerHTML = '<p class="hint">No hi ha recursos disponibles actualment.</p>';
+        return;
+      }
+
+      APP.resources.forEach(res => {
+        const card = document.createElement('div');
+        card.className = 'resource-card';
+        card.onclick = () => selectResource(res.id, card);
+
+        const typeLabel = res.type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+
+        card.innerHTML = `
         <div class="resource-name">${res.name}</div>
         <div class="resource-meta">${typeLabel} • Capacitat: ${res.capacity}</div>
       `;
-      listEl.appendChild(card);
-    });
-  } catch(e) {
-    listEl.innerHTML = `<p class="hint" style="color:red">Error al carregar els recursos: ${e.message}</p>`;
-  }
-}
-
-function selectResource(id, cardEl) {
-  // UI selection
-  document.querySelectorAll('.resource-card').forEach(c => c.classList.remove('selected'));
-  cardEl.classList.add('selected');
-  
-  // State
-  const resource = APP.resources.find(r => r.id === id);
-  APP.selectedResource = resource;
-  
-  // Populate checking form
-  document.getElementById('check-resource-id').value = resource.id;
-  document.getElementById('check-resource-name').value = resource.name;
-  
-  // Quantity handling
-  const qtyInput = document.getElementById('check-qty');
-  const qtyWrapper = document.getElementById('qty-wrapper');
-  
-  if (resource.type === 'classroom' || resource.type === 'auditorium') {
-    qtyInput.value = resource.capacity;
-    qtyInput.setAttribute('readonly', 'true');
-    document.getElementById('qty-hint').innerText = "Els espais s'han de reservar complets.";
-    qtyWrapper.style.opacity = "0.7";
-  } else {
-    qtyInput.value = 1;
-    qtyInput.removeAttribute('readonly');
-    qtyInput.setAttribute('max', resource.capacity);
-    document.getElementById('qty-hint').innerText = `Selecciona fins a ${resource.capacity}`;
-    qtyWrapper.style.opacity = "1";
+        listEl.appendChild(card);
+      });
+    } catch (e) {
+      listEl.innerHTML = `<p class="hint" style="color:red">Error al carregar els recursos: ${e.message}</p>`;
+    }
   }
 
-  // Enable check button
-  document.getElementById('btn-check').removeAttribute('disabled');
-  document.getElementById('availability-result').classList.add('hidden');
-}
+  function selectResource(id, cardEl) {
+    // UI selection
+    document.querySelectorAll('.resource-card').forEach(c => c.classList.remove('selected'));
+    cardEl.classList.add('selected');
 
-async function handleCheckAvailability(e) {
-  e.preventDefault();
-  const btn = document.getElementById('btn-check');
-  btn.innerText = "Comprovant...";
-  btn.disabled = true;
+    // State
+    const resource = APP.resources.find(r => r.id === id);
+    APP.selectedResource = resource;
 
-  const resBox = document.getElementById('availability-result');
-  const resMsg = document.getElementById('avail-message');
-  const resTitle = document.getElementById('avail-status-title');
-  const resBtn = document.getElementById('btn-reserve');
-  
-  resBox.classList.add('hidden');
-  resBox.classList.remove('success', 'error');
-  resBtn.classList.add('hidden');
+    // Populate checking form
+    document.getElementById('check-resource-id').value = resource.id;
+    document.getElementById('check-resource-name').value = resource.name;
 
-  const params = {
-    resourceId: document.getElementById('check-resource-id').value,
-    date: document.getElementById('check-date').value,
-    timeSlot: document.getElementById('check-slot').value,
-    quantity: document.getElementById('check-qty').value
-  };
+    // Quantity handling
+    const qtyInput = document.getElementById('check-qty');
+    const qtyWrapper = document.getElementById('qty-wrapper');
 
-  try {
-    const result = await apiCall('getAvailability', [params]);
-    resBox.classList.remove('hidden');
-    
-    if (result.available) {
-      resBox.classList.add('success');
-      resTitle.innerText = "Disponible!";
-      resMsg.innerText = `Quantitat sol·licitada: ${params.quantity}. Queden ${result.availableQty} unitats en aquesta franja.`;
-      resBtn.classList.remove('hidden');
-      APP.lastCheckParams = params;
+    if (resource.type === 'classroom' || resource.type === 'auditorium') {
+      qtyInput.value = resource.capacity;
+      qtyInput.setAttribute('readonly', 'true');
+      document.getElementById('qty-hint').innerText = "Els espais s'han de reservar complets.";
+      qtyWrapper.style.opacity = "0.7";
     } else {
-      resBox.classList.add('error');
-      resTitle.innerText = "No Disponible";
-      resMsg.innerText = result.reason;
+      qtyInput.value = 1;
+      qtyInput.removeAttribute('readonly');
+      qtyInput.setAttribute('max', resource.capacity);
+      document.getElementById('qty-hint').innerText = `Selecciona fins a ${resource.capacity}`;
+      qtyWrapper.style.opacity = "1";
     }
-  } catch (error) {
-    resBox.classList.remove('hidden');
-    resBox.classList.add('error');
-    resTitle.innerText = "Error";
-    resMsg.innerText = error.message;
-  } finally {
-    btn.innerText = "Comprova Disponibilitat";
-    btn.disabled = false;
-  }
-}
 
-async function handleCreateReservation() {
-  if (!APP.lastCheckParams) return;
-  
-  const commentVal = document.getElementById('check-comment').value;
-  if (!commentVal || commentVal.trim() === '') {
-    showToast("Siusplau, introdueix el motiu de la reserva.", "error");
-    return;
-  }
-  
-  const createParams = { ...APP.lastCheckParams, comment: commentVal.trim() };
-
-  const btn = document.getElementById('btn-reserve');
-  btn.innerText = "Processant...";
-  btn.disabled = true;
-
-  try {
-    await apiCall('createReservation', [createParams]);
-    showToast("Reserva creada amb èxit!");
-    
+    // Enable check button
+    document.getElementById('btn-check').removeAttribute('disabled');
     document.getElementById('availability-result').classList.add('hidden');
-    APP.lastCheckParams = null;
-    document.getElementById('check-form').reset();
-    document.getElementById('check-resource-name').value = ""; 
-    if(APP.selectedResource) {
-      document.getElementById('check-resource-name').value = APP.selectedResource.name;
-    }
-  } catch (error) {
-    showToast("Error en la reserva: " + error.message, 'error');
-  } finally {
-    btn.innerText = "Crear Reserva";
-    btn.disabled = false;
   }
-}
 
-// ==========================================
-// MY RESERVATIONS TAB
-// ==========================================
+  async function handleCheckAvailability(e) {
+    e.preventDefault();
+    const btn = document.getElementById('btn-check');
+    btn.innerText = "Comprovant...";
+    btn.disabled = true;
 
-async function loadMyReservations() {
-  const listEl = document.getElementById('my-reservations-list');
-  listEl.innerHTML = '<div class="loading-spinner"></div>';
-  
-  try {
-    if(APP.resources.length === 0) await loadResources();
+    const resBox = document.getElementById('availability-result');
+    const resMsg = document.getElementById('avail-message');
+    const resTitle = document.getElementById('avail-status-title');
+    const resBtn = document.getElementById('btn-reserve');
 
-    const reservations = await apiCall('listMyReservations');
-    reservations.sort((a,b) => {
-      if (a.date !== b.date) return b.date.localeCompare(a.date);
-      return b.timeSlot.localeCompare(a.timeSlot);
-    });
-    
-    APP.myReservations = reservations;
-    
-    listEl.innerHTML = '';
-    if (reservations.length === 0) {
-      listEl.innerHTML = '<p class="hint">No tens cap reserva activa.</p>';
+    resBox.classList.add('hidden');
+    resBox.classList.remove('success', 'error');
+    resBtn.classList.add('hidden');
+
+    const params = {
+      resourceId: document.getElementById('check-resource-id').value,
+      date: document.getElementById('check-date').value,
+      timeSlot: document.getElementById('check-slot').value,
+      quantity: document.getElementById('check-qty').value
+    };
+
+    try {
+      const result = await apiCall('getAvailability', [params]);
+      resBox.classList.remove('hidden');
+
+      if (result.available) {
+        resBox.classList.add('success');
+        resTitle.innerText = "Disponible!";
+        resMsg.innerText = `Quantitat sol·licitada: ${params.quantity}. Queden ${result.availableQty} unitats en aquesta franja.`;
+        resBtn.classList.remove('hidden');
+        APP.lastCheckParams = params;
+      } else {
+        resBox.classList.add('error');
+        resTitle.innerText = "No Disponible";
+        resMsg.innerText = result.reason;
+      }
+    } catch (error) {
+      resBox.classList.remove('hidden');
+      resBox.classList.add('error');
+      resTitle.innerText = "Error";
+      resMsg.innerText = error.message;
+    } finally {
+      btn.innerText = "Comprova Disponibilitat";
+      btn.disabled = false;
+    }
+  }
+
+  async function handleCreateReservation() {
+    if (!APP.lastCheckParams) return;
+
+    const commentVal = document.getElementById('check-comment').value;
+    if (!commentVal || commentVal.trim() === '') {
+      showToast("Siusplau, introdueix el motiu de la reserva.", "error");
       return;
     }
 
-    reservations.forEach(r => {
-      const resource = APP.resources.find(res => res.id === r.resourceId);
-      const resName = r.resourceName || (resource ? resource.name : 'Recurs Desconegut');
-      
-      const row = document.createElement('div');
-      row.className = 'data-row';
-      
-      row.innerHTML = `
+    const createParams = { ...APP.lastCheckParams, comment: commentVal.trim() };
+
+    const btn = document.getElementById('btn-reserve');
+    btn.innerText = "Processant...";
+    btn.disabled = true;
+
+    try {
+      await apiCall('createReservation', [createParams]);
+      showToast("Reserva creada amb èxit!");
+
+      document.getElementById('availability-result').classList.add('hidden');
+      APP.lastCheckParams = null;
+      document.getElementById('check-form').reset();
+      document.getElementById('check-resource-name').value = "";
+      if (APP.selectedResource) {
+        document.getElementById('check-resource-name').value = APP.selectedResource.name;
+      }
+    } catch (error) {
+      showToast("Error en la reserva: " + error.message, 'error');
+    } finally {
+      btn.innerText = "Crear Reserva";
+      btn.disabled = false;
+    }
+  }
+
+  // ==========================================
+  // MY RESERVATIONS TAB
+  // ==========================================
+
+  async function loadMyReservations() {
+    const listEl = document.getElementById('my-reservations-list');
+    listEl.innerHTML = '<div class="loading-spinner"></div>';
+
+    try {
+      if (APP.resources.length === 0) await loadResources();
+
+      const reservations = await apiCall('listMyReservations');
+      reservations.sort((a, b) => {
+        if (a.date !== b.date) return b.date.localeCompare(a.date);
+        return b.timeSlot.localeCompare(a.timeSlot);
+      });
+
+      APP.myReservations = reservations;
+
+      listEl.innerHTML = '';
+      if (reservations.length === 0) {
+        listEl.innerHTML = '<p class="hint">No tens cap reserva activa.</p>';
+        return;
+      }
+
+      reservations.forEach(r => {
+        const resource = APP.resources.find(res => res.id === r.resourceId);
+        const resName = r.resourceName || (resource ? resource.name : 'Recurs Desconegut');
+
+        const row = document.createElement('div');
+        row.className = 'data-row';
+
+        row.innerHTML = `
         <div class="data-info">
           <div class="data-title">${resName} (${r.quantity} un.)</div>
           <div class="data-sub">${r.date} @ ${r.timeSlot}</div>
@@ -335,25 +335,25 @@ async function loadMyReservations() {
           ${!r.isExpired ? `<button class="btn btn-danger btn-sm" onclick="cancelReservation('${r.id}')">Cancel·la</button>` : ''}
         </div>
       `;
-      listEl.appendChild(row);
-    });
-  } catch(e) {
-    listEl.innerHTML = `<p class="hint" style="color:red">Error al carregar les reserves: ${e.message}</p>`;
+        listEl.appendChild(row);
+      });
+    } catch (e) {
+      listEl.innerHTML = `<p class="hint" style="color:red">Error al carregar les reserves: ${e.message}</p>`;
+    }
   }
-}
 
-function openEditReservation(id) {
-  const r = APP.myReservations.find(res => res.id === id);
-  if(!r) return;
-  const resource = APP.resources.find(res => res.id === r.resourceId);
-  const resourceType = resource ? resource.type : '';
-  const maxCap = resource ? resource.capacity : 1;
-  const isSpace = resourceType === 'classroom' || resourceType === 'auditorium';
+  function openEditReservation(id) {
+    const r = APP.myReservations.find(res => res.id === id);
+    if (!r) return;
+    const resource = APP.resources.find(res => res.id === r.resourceId);
+    const resourceType = resource ? resource.type : '';
+    const maxCap = resource ? resource.capacity : 1;
+    const isSpace = resourceType === 'classroom' || resourceType === 'auditorium';
 
-  document.getElementById('edit-modal-title').innerText = "Editar Reserva";
-  
-  const body = document.getElementById('edit-modal-body');
-  body.innerHTML = `
+    document.getElementById('edit-modal-title').innerText = "Editar Reserva";
+
+    const body = document.getElementById('edit-modal-body');
+    body.innerHTML = `
     <div class="form-group">
       <label>Data</label>
       <input type="date" id="edit-res-date" value="${r.date}" required>
@@ -361,13 +361,13 @@ function openEditReservation(id) {
     <div class="form-group">
       <label>Franja Horària</label>
       <select id="edit-res-slot" required>
-        <option value="08:00-09:00" ${r.timeSlot === '08:00-09:00'?'selected':''}>08:00 - 09:00</option>
-        <option value="09:00-10:00" ${r.timeSlot === '09:00-10:00'?'selected':''}>09:00 - 10:00</option>
-        <option value="10:00-11:00" ${r.timeSlot === '10:00-11:00'?'selected':''}>10:00 - 11:00</option>
-        <option value="11:00-12:00" ${r.timeSlot === '11:00-12:00'?'selected':''}>11:00 - 12:00</option>
-        <option value="12:00-13:00" ${r.timeSlot === '12:00-13:00'?'selected':''}>12:00 - 13:00</option>
-        <option value="13:00-14:00" ${r.timeSlot === '13:00-14:00'?'selected':''}>13:00 - 14:00</option>
-        <option value="14:00-15:00" ${r.timeSlot === '14:00-15:00'?'selected':''}>14:00 - 15:00</option>
+        <option value="08:00-09:00" ${r.timeSlot === '08:00-09:00' ? 'selected' : ''}>08:00 - 09:00</option>
+        <option value="09:00-10:00" ${r.timeSlot === '09:00-10:00' ? 'selected' : ''}>09:00 - 10:00</option>
+        <option value="10:00-11:00" ${r.timeSlot === '10:00-11:00' ? 'selected' : ''}>10:00 - 11:00</option>
+        <option value="11:00-12:00" ${r.timeSlot === '11:00-12:00' ? 'selected' : ''}>11:00 - 12:00</option>
+        <option value="12:00-13:00" ${r.timeSlot === '12:00-13:00' ? 'selected' : ''}>12:00 - 13:00</option>
+        <option value="13:00-14:00" ${r.timeSlot === '13:00-14:00' ? 'selected' : ''}>13:00 - 14:00</option>
+        <option value="14:00-15:00" ${r.timeSlot === '14:00-15:00' ? 'selected' : ''}>14:00 - 15:00</option>
       </select>
     </div>
     <div class="form-group" style="${isSpace ? 'opacity:0.6;' : ''}">
@@ -380,95 +380,95 @@ function openEditReservation(id) {
     </div>
   `;
 
-  document.getElementById('edit-modal-form').onsubmit = async function(e) {
-    e.preventDefault();
-    const btn = document.getElementById('btn-edit-save');
-    btn.disabled = true;
-    btn.innerText = "Desant...";
+    document.getElementById('edit-modal-form').onsubmit = async function (e) {
+      e.preventDefault();
+      const btn = document.getElementById('btn-edit-save');
+      btn.disabled = true;
+      btn.innerText = "Desant...";
+      try {
+        await apiCall('updateReservation', [r.id, {
+          date: document.getElementById('edit-res-date').value,
+          timeSlot: document.getElementById('edit-res-slot').value,
+          quantity: document.getElementById('edit-res-qty').value,
+          comment: document.getElementById('edit-res-comment').value
+        }]);
+        showToast("Reserva actualitzada amb èxit!");
+        closeEditModal();
+        loadMyReservations();
+      } catch (err) {
+        showToast(err.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.innerText = "Desa";
+      }
+    };
+
+    document.getElementById('edit-modal-overlay').classList.remove('hidden');
+  }
+
+  async function cancelReservation(id) {
+    if (!confirm("Estàs segur que vols cancel·lar aquesta reserva?")) return;
     try {
-      await apiCall('updateReservation', [r.id, {
-        date: document.getElementById('edit-res-date').value,
-        timeSlot: document.getElementById('edit-res-slot').value,
-        quantity: document.getElementById('edit-res-qty').value,
-        comment: document.getElementById('edit-res-comment').value
-      }]);
-      showToast("Reserva actualitzada amb èxit!");
-      closeEditModal();
+      await apiCall('cancelReservation', [id]);
+      showToast("Reserva cancel·lada.");
       loadMyReservations();
-    } catch(err) {
-      showToast(err.message, 'error');
-    } finally {
-      btn.disabled = false;
-      btn.innerText = "Desa";
+    } catch (e) {
+      showToast("Error en cancel·lar: " + e.message, "error");
     }
-  };
-
-  document.getElementById('edit-modal-overlay').classList.remove('hidden');
-}
-
-async function cancelReservation(id) {
-  if(!confirm("Estàs segur que vols cancel·lar aquesta reserva?")) return;
-  try {
-    await apiCall('cancelReservation', [id]);
-    showToast("Reserva cancel·lada.");
-    loadMyReservations(); 
-  } catch (e) {
-    showToast("Error en cancel·lar: " + e.message, "error");
-  }
-}
-
-// ==========================================
-// ADMIN TAB
-// ==========================================
-
-async function loadAdminData() {
-  if (!APP.user || !APP.user.isAdmin) return;
-  
-  document.getElementById('admin-resource-list').innerHTML = '<div class="loading-spinner"></div>';
-  document.getElementById('admin-restriction-list').innerHTML = '<div class="loading-spinner"></div>';
-  
-  try {
-    // Parallel fetch cuts down requests by half compared to sequential
-    const [resData, restData] = await Promise.all([
-      apiCall('adminListResources'),
-      apiCall('adminListRestrictions')
-    ]);
-    resData.sort((a,b) => a.name.localeCompare(b.name));
-    APP.adminResources = resData;
-    APP.adminRestrictions = restData;
-    
-    renderAdminResources();
-    renderAdminRestrictions();
-  } catch(e) {
-    showToast("Error al carregar les dades de l'administrador: " + e.message, 'error');
-  }
-}
-
-function renderAdminResources() {
-  const listEl = document.getElementById('admin-resource-list');
-  const dropEl = document.getElementById('admin-rest-resource');
-  
-  listEl.innerHTML = '';
-  dropEl.innerHTML = '<option value="">-- Selecciona Recurs --</option>';
-  
-  if (APP.adminResources.length === 0) {
-    listEl.innerHTML = '<p class="hint">No hi ha recursos configurats.</p>';
-    return;
   }
 
-  APP.adminResources.forEach(r => {
-    const row = document.createElement('div');
-    row.className = 'data-row';
-    const statusBadge = r.active === true || String(r.active).toLowerCase() === 'true' 
-      ? '<span style="color:var(--success)">Actiu</span>' 
-      : '<span style="color:var(--danger)">Inactiu</span>';
-    
-    let typeLabel = r.type;
-    if(r.type === 'classroom') typeLabel = 'Aula';
-    if(r.type === 'auditorium') typeLabel = 'Saló';
-    if(r.type === 'laptop_cart') typeLabel = 'Carro';
-    
-    row.innerHTML = `
+  // ==========================================
+  // ADMIN TAB
+  // ==========================================
+
+  async function loadAdminData() {
+    if (!APP.user || !APP.user.isAdmin) return;
+
+    document.getElementById('admin-resource-list').innerHTML = '<div class="loading-spinner"></div>';
+    document.getElementById('admin-restriction-list').innerHTML = '<div class="loading-spinner"></div>';
+
+    try {
+      // Parallel fetch cuts down requests by half compared to sequential
+      const [resData, restData] = await Promise.all([
+        apiCall('adminListResources'),
+        apiCall('adminListRestrictions')
+      ]);
+      resData.sort((a, b) => a.name.localeCompare(b.name));
+      APP.adminResources = resData;
+      APP.adminRestrictions = restData;
+
+      renderAdminResources();
+      renderAdminRestrictions();
+    } catch (e) {
+      showToast("Error al carregar les dades de l'administrador: " + e.message, 'error');
+    }
+  }
+
+  function renderAdminResources() {
+    const listEl = document.getElementById('admin-resource-list');
+    const dropEl = document.getElementById('admin-rest-resource');
+
+    listEl.innerHTML = '';
+    dropEl.innerHTML = '<option value="">-- Selecciona Recurs --</option>';
+
+    if (APP.adminResources.length === 0) {
+      listEl.innerHTML = '<p class="hint">No hi ha recursos configurats.</p>';
+      return;
+    }
+
+    APP.adminResources.forEach(r => {
+      const row = document.createElement('div');
+      row.className = 'data-row';
+      const statusBadge = r.active === true || String(r.active).toLowerCase() === 'true'
+        ? '<span style="color:var(--success)">Actiu</span>'
+        : '<span style="color:var(--danger)">Inactiu</span>';
+
+      let typeLabel = r.type;
+      if (r.type === 'classroom') typeLabel = 'Aula';
+      if (r.type === 'auditorium') typeLabel = 'Saló';
+      if (r.type === 'laptop_cart') typeLabel = 'Carro';
+
+      row.innerHTML = `
       <div class="data-info" style="flex:1;">
         <div class="data-title">${r.name}</div>
         <div class="data-sub">${typeLabel} | Cap: ${r.capacity} | ${statusBadge}</div>
@@ -478,39 +478,39 @@ function renderAdminResources() {
         <button class="btn btn-secondary btn-sm" onclick="deleteResource('${r.id}')">Desactiva</button>
       </div>
     `;
-    listEl.appendChild(row);
-    
-    if (r.active === true || String(r.active).toLowerCase() === 'true') {
-      const opt = document.createElement('option');
-      opt.value = r.id;
-      opt.innerText = r.name;
-      dropEl.appendChild(opt);
-    }
-  });
-}
+      listEl.appendChild(row);
 
-function renderAdminRestrictions() {
-  const listEl = document.getElementById('admin-restriction-list');
-  
-  APP.adminRestrictions.sort((a,b) => {
-      if(a.resourceId !== b.resourceId) return a.resourceId.localeCompare(b.resourceId);
-      if(a.dayOfWeek !== b.dayOfWeek) return a.dayOfWeek - b.dayOfWeek;
-      return a.timeSlot.localeCompare(b.timeSlot);
-  });
-  
-  listEl.innerHTML = '';
-  if (APP.adminRestrictions.length === 0) {
-    listEl.innerHTML = '<p class="hint">No hi ha restriccions actives.</p>';
-    return;
+      if (r.active === true || String(r.active).toLowerCase() === 'true') {
+        const opt = document.createElement('option');
+        opt.value = r.id;
+        opt.innerText = r.name;
+        dropEl.appendChild(opt);
+      }
+    });
   }
-  
-  const dayNames = {1:'Dl',2:'Dt',3:'Dc',4:'Dj',5:'Dv'};
 
-  APP.adminRestrictions.forEach(r => {
-    const resName = APP.adminResources.find(res => res.id === r.resourceId)?.name || 'Recurs Desconegut';
-    const row = document.createElement('div');
-    row.className = 'data-row';
-    row.innerHTML = `
+  function renderAdminRestrictions() {
+    const listEl = document.getElementById('admin-restriction-list');
+
+    APP.adminRestrictions.sort((a, b) => {
+      if (a.resourceId !== b.resourceId) return a.resourceId.localeCompare(b.resourceId);
+      if (a.dayOfWeek !== b.dayOfWeek) return a.dayOfWeek - b.dayOfWeek;
+      return a.timeSlot.localeCompare(b.timeSlot);
+    });
+
+    listEl.innerHTML = '';
+    if (APP.adminRestrictions.length === 0) {
+      listEl.innerHTML = '<p class="hint">No hi ha restriccions actives.</p>';
+      return;
+    }
+
+    const dayNames = { 1: 'Dl', 2: 'Dt', 3: 'Dc', 4: 'Dj', 5: 'Dv' };
+
+    APP.adminRestrictions.forEach(r => {
+      const resName = APP.adminResources.find(res => res.id === r.resourceId)?.name || 'Recurs Desconegut';
+      const row = document.createElement('div');
+      row.className = 'data-row';
+      row.innerHTML = `
       <div class="data-info" style="flex:1;">
         <div class="data-title">${resName}</div>
         <div class="data-sub">${dayNames[r.dayOfWeek]} @ ${r.timeSlot} - ${r.description}</div>
@@ -520,18 +520,18 @@ function renderAdminRestrictions() {
         <button class="btn btn-secondary btn-sm" onclick="deleteRestriction('${r.id}')">Esborra</button>
       </div>
     `;
-    listEl.appendChild(row);
-  });
-}
+      listEl.appendChild(row);
+    });
+  }
 
-function openEditResource(id) {
-  const r = APP.adminResources.find(res => res.id === id);
-  if(!r) return;
+  function openEditResource(id) {
+    const r = APP.adminResources.find(res => res.id === id);
+    if (!r) return;
 
-  const isActive = String(r.active).toLowerCase() === 'true' || r.active === true;
+    const isActive = String(r.active).toLowerCase() === 'true' || r.active === true;
 
-  document.getElementById('edit-modal-title').innerText = "Editar Recurs";
-  document.getElementById('edit-modal-body').innerHTML = `
+    document.getElementById('edit-modal-title').innerText = "Editar Recurs";
+    document.getElementById('edit-modal-body').innerHTML = `
     <div class="form-group">
       <label>Nom</label>
       <input type="text" id="edit-resrc-name" value="${r.name}" required>
@@ -540,9 +540,9 @@ function openEditResource(id) {
       <div class="col">
         <label>Tipus</label>
         <select id="edit-resrc-type" required>
-          <option value="classroom" ${r.type==='classroom'?'selected':''}>Aula</option>
-          <option value="auditorium" ${r.type==='auditorium'?'selected':''}>Saló d'Actes</option>
-          <option value="laptop_cart" ${r.type==='laptop_cart'?'selected':''}>Carro de Portàtils</option>
+          <option value="classroom" ${r.type === 'classroom' ? 'selected' : ''}>Aula</option>
+          <option value="auditorium" ${r.type === 'auditorium' ? 'selected' : ''}>Saló d'Actes</option>
+          <option value="laptop_cart" ${r.type === 'laptop_cart' ? 'selected' : ''}>Carro de Portàtils</option>
         </select>
       </div>
       <div class="col">
@@ -556,59 +556,59 @@ function openEditResource(id) {
     </div>
   `;
 
-  document.getElementById('edit-modal-form').onsubmit = async function(e) {
-    e.preventDefault();
-    const btn = document.getElementById('btn-edit-save');
-    btn.disabled = true;
-    try {
-      await apiCall('adminUpdateResource', [r.id, {
-        name: document.getElementById('edit-resrc-name').value,
-        type: document.getElementById('edit-resrc-type').value,
-        capacity: document.getElementById('edit-resrc-cap').value,
-        active: document.getElementById('edit-resrc-active').checked
-      }]);
-      showToast("Resource updated.");
-      closeEditModal();
-      loadAdminData();
-      loadResources(); 
-    } catch(err) {
-      showToast(err.message, 'error');
-    } finally {
-      btn.disabled = false;
-      btn.innerText = "Save";
-    }
-  };
+    document.getElementById('edit-modal-form').onsubmit = async function (e) {
+      e.preventDefault();
+      const btn = document.getElementById('btn-edit-save');
+      btn.disabled = true;
+      try {
+        await apiCall('adminUpdateResource', [r.id, {
+          name: document.getElementById('edit-resrc-name').value,
+          type: document.getElementById('edit-resrc-type').value,
+          capacity: document.getElementById('edit-resrc-cap').value,
+          active: document.getElementById('edit-resrc-active').checked
+        }]);
+        showToast("Resource updated.");
+        closeEditModal();
+        loadAdminData();
+        loadResources();
+      } catch (err) {
+        showToast(err.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.innerText = "Save";
+      }
+    };
 
-  document.getElementById('edit-modal-overlay').classList.remove('hidden');
-}
+    document.getElementById('edit-modal-overlay').classList.remove('hidden');
+  }
 
-function openEditRestriction(id) {
-  const r = APP.adminRestrictions.find(res => res.id === id);
-  if(!r) return;
+  function openEditRestriction(id) {
+    const r = APP.adminRestrictions.find(res => res.id === id);
+    if (!r) return;
 
-  document.getElementById('edit-modal-title').innerText = "Editar Restricció";
-  document.getElementById('edit-modal-body').innerHTML = `
+    document.getElementById('edit-modal-title').innerText = "Editar Restricció";
+    document.getElementById('edit-modal-body').innerHTML = `
     <div class="form-group row">
       <div class="col">
         <label>Dia de la Setmana</label>
         <select id="edit-rest-day" required>
-          <option value="1" ${Number(r.dayOfWeek)===1?'selected':''}>Dilluns</option>
-          <option value="2" ${Number(r.dayOfWeek)===2?'selected':''}>Dimarts</option>
-          <option value="3" ${Number(r.dayOfWeek)===3?'selected':''}>Dimecres</option>
-          <option value="4" ${Number(r.dayOfWeek)===4?'selected':''}>Dijous</option>
-          <option value="5" ${Number(r.dayOfWeek)===5?'selected':''}>Divendres</option>
+          <option value="1" ${Number(r.dayOfWeek) === 1 ? 'selected' : ''}>Dilluns</option>
+          <option value="2" ${Number(r.dayOfWeek) === 2 ? 'selected' : ''}>Dimarts</option>
+          <option value="3" ${Number(r.dayOfWeek) === 3 ? 'selected' : ''}>Dimecres</option>
+          <option value="4" ${Number(r.dayOfWeek) === 4 ? 'selected' : ''}>Dijous</option>
+          <option value="5" ${Number(r.dayOfWeek) === 5 ? 'selected' : ''}>Divendres</option>
         </select>
       </div>
       <div class="col">
         <label>Franja Horària</label>
         <select id="edit-rest-slot" required>
-          <option value="08:00-09:00" ${r.timeSlot === '08:00-09:00'?'selected':''}>08:00 - 09:00</option>
-          <option value="09:00-10:00" ${r.timeSlot === '09:00-10:00'?'selected':''}>09:00 - 10:00</option>
-          <option value="10:00-11:00" ${r.timeSlot === '10:00-11:00'?'selected':''}>10:00 - 11:00</option>
-          <option value="11:00-12:00" ${r.timeSlot === '11:00-12:00'?'selected':''}>11:00 - 12:00</option>
-          <option value="12:00-13:00" ${r.timeSlot === '12:00-13:00'?'selected':''}>12:00 - 13:00</option>
-          <option value="13:00-14:00" ${r.timeSlot === '13:00-14:00'?'selected':''}>13:00 - 14:00</option>
-          <option value="14:00-15:00" ${r.timeSlot === '14:00-15:00'?'selected':''}>14:00 - 15:00</option>
+          <option value="08:00-09:00" ${r.timeSlot === '08:00-09:00' ? 'selected' : ''}>08:00 - 09:00</option>
+          <option value="09:00-10:00" ${r.timeSlot === '09:00-10:00' ? 'selected' : ''}>09:00 - 10:00</option>
+          <option value="10:00-11:00" ${r.timeSlot === '10:00-11:00' ? 'selected' : ''}>10:00 - 11:00</option>
+          <option value="11:00-12:00" ${r.timeSlot === '11:00-12:00' ? 'selected' : ''}>11:00 - 12:00</option>
+          <option value="12:00-13:00" ${r.timeSlot === '12:00-13:00' ? 'selected' : ''}>12:00 - 13:00</option>
+          <option value="13:00-14:00" ${r.timeSlot === '13:00-14:00' ? 'selected' : ''}>13:00 - 14:00</option>
+          <option value="14:00-15:00" ${r.timeSlot === '14:00-15:00' ? 'selected' : ''}>14:00 - 15:00</option>
         </select>
       </div>
     </div>
@@ -618,113 +618,113 @@ function openEditRestriction(id) {
     </div>
   `;
 
-  document.getElementById('edit-modal-form').onsubmit = async function(e) {
+    document.getElementById('edit-modal-form').onsubmit = async function (e) {
+      e.preventDefault();
+      const btn = document.getElementById('btn-edit-save');
+      btn.disabled = true;
+      try {
+        await apiCall('adminUpdateRestriction', [r.id, {
+          dayOfWeek: Number(document.getElementById('edit-rest-day').value),
+          timeSlot: document.getElementById('edit-rest-slot').value,
+          description: document.getElementById('edit-rest-desc').value
+        }]);
+        showToast("Restricció actualitzada.");
+        closeEditModal();
+        loadAdminData();
+      } catch (err) {
+        showToast(err.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.innerText = "Desa";
+      }
+    };
+
+    document.getElementById('edit-modal-overlay').classList.remove('hidden');
+  }
+
+  async function handleCreateResource(e) {
     e.preventDefault();
-    const btn = document.getElementById('btn-edit-save');
+    const btn = e.target.querySelector('button[type="submit"]');
     btn.disabled = true;
+    btn.innerText = "Desant...";
+
+    const params = {
+      name: document.getElementById('admin-res-name').value,
+      type: document.getElementById('admin-res-type').value,
+      capacity: document.getElementById('admin-res-cap').value,
+      active: true
+    };
+
     try {
-      await apiCall('adminUpdateRestriction', [r.id, {
-        dayOfWeek: Number(document.getElementById('edit-rest-day').value),
-        timeSlot: document.getElementById('edit-rest-slot').value,
-        description: document.getElementById('edit-rest-desc').value
-      }]);
-      showToast("Restricció actualitzada.");
-      closeEditModal();
+      await apiCall('adminCreateResource', [params]);
+      showToast("Recurs creat.");
+      e.target.reset();
       loadAdminData();
-    } catch(err) {
+      loadResources();
+    } catch (err) {
       showToast(err.message, 'error');
     } finally {
       btn.disabled = false;
-      btn.innerText = "Desa";
+      btn.innerText = "Crea Recurs";
     }
-  };
-
-  document.getElementById('edit-modal-overlay').classList.remove('hidden');
-}
-
-async function handleCreateResource(e) {
-  e.preventDefault();
-  const btn = e.target.querySelector('button[type="submit"]');
-  btn.disabled = true;
-  btn.innerText = "Desant...";
-  
-  const params = {
-    name: document.getElementById('admin-res-name').value,
-    type: document.getElementById('admin-res-type').value,
-    capacity: document.getElementById('admin-res-cap').value,
-    active: true
-  };
-  
-  try {
-    await apiCall('adminCreateResource', [params]);
-    showToast("Recurs creat.");
-    e.target.reset();
-    loadAdminData();
-    loadResources(); 
-  } catch(err) {
-    showToast(err.message, 'error');
-  } finally {
-    btn.disabled = false;
-    btn.innerText = "Crea Recurs";
   }
-}
 
-async function deleteResource(id) {
-  if(!confirm("Vols desactivar aquest recurs? (Les reserves històriques es mantindran)")) return;
-  try {
-    await apiCall('adminDeleteResource', [id]);
-    showToast("Recurs desactivat.");
-    loadAdminData();
-    loadResources();
-  } catch(err) {
-    showToast(err.message, 'error');
+  async function deleteResource(id) {
+    if (!confirm("Vols desactivar aquest recurs? (Les reserves històriques es mantindran)")) return;
+    try {
+      await apiCall('adminDeleteResource', [id]);
+      showToast("Recurs desactivat.");
+      loadAdminData();
+      loadResources();
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
   }
-}
 
-async function handleCreateRestriction(e) {
-  e.preventDefault();
-  const btn = e.target.querySelector('button[type="submit"]');
-  btn.disabled = true;
-  btn.innerText = "Desant...";
-  
-  const selectElement = document.getElementById('admin-rest-slots');
-  const selectedSlots = Array.from(selectElement.selectedOptions).map(option => option.value);
-  
-  if (selectedSlots.length === 0) {
-    showToast("Siusplau, selecciona com a mínim una franja horària.", 'error');
-    btn.disabled = false;
-    btn.innerText = "Crea Restricció(ns)";
-    return;
-  }
-  
-  const params = {
-    resourceId: document.getElementById('admin-rest-resource').value,
-    dayOfWeek: Number(document.getElementById('admin-rest-day').value),
-    timeSlots: selectedSlots,
-    description: document.getElementById('admin-rest-desc').value
-  };
-  
-  try {
-    await apiCall('adminCreateRestriction', [params]);
-    showToast("Restricció(ns) creades amb èxit.");
-    e.target.reset();
-    loadAdminData();
-  } catch(err) {
-    showToast(err.message, 'error');
-  } finally {
-    btn.disabled = false;
-    btn.innerText = "Crea Restricció(ns)";
-  }
-}
+  async function handleCreateRestriction(e) {
+    e.preventDefault();
+    const btn = e.target.querySelector('button[type="submit"]');
+    btn.disabled = true;
+    btn.innerText = "Desant...";
 
-async function deleteRestriction(id) {
-  if(!confirm("Vols esborrar aquesta restricció específica?")) return;
-  try {
-    await apiCall('adminDeleteRestriction', [id]);
-    showToast("Restricció esborrada.");
-    loadAdminData();
-  } catch(err) {
-    showToast(err.message, 'error');
+    const selectElement = document.getElementById('admin-rest-slots');
+    const selectedSlots = Array.from(selectElement.selectedOptions).map(option => option.value);
+
+    if (selectedSlots.length === 0) {
+      showToast("Siusplau, selecciona com a mínim una franja horària.", 'error');
+      btn.disabled = false;
+      btn.innerText = "Crea Restricció(ns)";
+      return;
+    }
+
+    const params = {
+      resourceId: document.getElementById('admin-rest-resource').value,
+      dayOfWeek: Number(document.getElementById('admin-rest-day').value),
+      timeSlots: selectedSlots,
+      description: document.getElementById('admin-rest-desc').value
+    };
+
+    try {
+      await apiCall('adminCreateRestriction', [params]);
+      showToast("Restricció(ns) creades amb èxit.");
+      e.target.reset();
+      loadAdminData();
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      btn.disabled = false;
+      btn.innerText = "Crea Restricció(ns)";
+    }
   }
-}
+
+  async function deleteRestriction(id) {
+    if (!confirm("Vols esborrar aquesta restricció específica?")) return;
+    try {
+      await apiCall('adminDeleteRestriction', [id]);
+      showToast("Restricció eliminada.");
+      loadAdminData();
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  }
 </script>

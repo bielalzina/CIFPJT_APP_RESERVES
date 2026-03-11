@@ -3,6 +3,7 @@
  * Business logic layer for the Reservation System.
  * Connects controllers to repositories while enforcing domain rules,
  * validations, permissions, and concurrency locks.
+ * CIFP JT
  */
 
 // ==========================================
