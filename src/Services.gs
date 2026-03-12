@@ -275,6 +275,70 @@ const AvailabilityService = {
     }
     
     return this.checkAvailability(resource, params.date, params.timeSlot, finalQty);
+  },
+
+  /**
+   * Retrieves the status of a resource for an entire week.
+   * @param {Object} params { resourceId, startDate } (startDate is the Monday of the week)
+   * @returns {Object} { days: { date: { timeSlot: { status, reservedQty, capacity } } } }
+   */
+  getWeeklyStatus: function(params) {
+    AuthService.requireCanReserve(AuthService.getCurrentUserEmail());
+    ValidationService.requireFields(params, ['resourceId', 'startDate']);
+    
+    const resource = ResourcesRepo.getById(params.resourceId);
+    if (!resource || !ValidationService.parseActiveFlag(resource.active)) {
+      throw new Error("Recurs no trobat o inactiu.");
+    }
+
+    const startDate = new Date(params.startDate);
+    const weeklyData = {};
+    const slots = CONFIG.TIME_SLOTS;
+
+    // Get all restrictions and reservations for the week to minimize DB hits
+    const restrictions = RestrictionsRepo.getByResourceId(params.resourceId);
+    
+    // We'll iterate through 5 days (Mon-Fri)
+    for (let i = 0; i < 5; i++) {
+        const d = new Date(startDate);
+        d.setUTCDate(d.getUTCDate() + i);
+        const dateStr = d.toISOString().split('T')[0];
+        
+        weeklyData[dateStr] = {};
+        
+        const reservations = ReservationsRepo.getByResourceAndDate(params.resourceId, dateStr);
+
+        slots.forEach(slot => {
+            let status = 'available';
+            let reservedQty = 0;
+            
+            // Check restrictions
+            const isRestricted = restrictions.some(r => Number(r.dayOfWeek) === (i + 1) && r.timeSlot === slot);
+            
+            if (isRestricted) {
+                status = 'restricted';
+            } else {
+                const slotRes = reservations.filter(r => r.timeSlot === slot);
+                slotRes.forEach(r => reservedQty += Number(r.quantity || 0));
+                
+                const capacity = Number(resource.capacity);
+                if (reservedQty >= capacity) {
+                    status = 'reserved';
+                } else if (reservedQty > 0) {
+                    status = 'partial';
+                }
+            }
+            
+            weeklyData[dateStr][slot] = {
+                status: status,
+                reservedQty: reservedQty,
+                capacity: Number(resource.capacity),
+                isExpired: ReservationService.isExpired(dateStr, slot)
+            };
+        });
+    }
+
+    return weeklyData;
   }
 };
 

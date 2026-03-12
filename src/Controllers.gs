@@ -96,6 +96,12 @@ function getAvailability(params) {
   });
 }
 
+function getWeeklyStatus(params) {
+  return withErrorHandling_(function() {
+    return AvailabilityService.getWeeklyStatus(params);
+  });
+}
+
 
 // ==========================================
 // RESERVATION ENDPOINTS (Teachers & Admins)

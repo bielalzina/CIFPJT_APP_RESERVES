@@ -96,6 +96,23 @@
             <p id="avail-message"></p>
             <button id="btn-reserve" class="btn btn-success hidden">Crear Reserva</button>
           </div>
+
+          <!-- Weekly View Container -->
+          <div id="weekly-view-section" class="hidden weekly-view-container">
+            <div class="weekly-header">
+              <h3>Vista Setmanal</h3>
+              <div style="display: flex; gap: 0.5rem; align-items: center;">
+                <button class="btn btn-secondary btn-sm" id="btn-prev-week" disabled>&lt; Anterior</button>
+                <span id="weekly-date-range" style="font-weight: 500; font-size: 0.9rem;"></span>
+                <button class="btn btn-secondary btn-sm" id="btn-next-week">Següent &gt;</button>
+              </div>
+            </div>
+            <div class="weekly-grid-wrapper">
+              <div id="weekly-grid" class="weekly-grid">
+                <!-- Injected dynamically -->
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </section>

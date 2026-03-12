@@ -11,7 +11,10 @@
     lastCheckParams: null,
     myReservations: [],
     adminResources: [],
-    adminRestrictions: []
+    adminRestrictions: [],
+    currentWeekStart: null,
+    maxWeekStart: null,
+    minWeekStart: null
   };
 
   // ==========================================
@@ -55,6 +58,19 @@
     // Set minimum date for datetime picker
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('check-date').setAttribute('min', today);
+
+    // Weekly navigation
+    document.getElementById('btn-prev-week').addEventListener('click', () => navigateWeek(-1));
+    document.getElementById('btn-next-week').addEventListener('click', () => navigateWeek(1));
+
+    // Force re-check if quantity or date/slot changes manually
+    const invalidateResult = () => {
+      document.getElementById('availability-result').classList.add('hidden');
+      APP.lastCheckParams = null;
+    };
+    document.getElementById('check-qty').addEventListener('input', invalidateResult);
+    document.getElementById('check-date').addEventListener('input', invalidateResult);
+    document.getElementById('check-slot').addEventListener('change', invalidateResult);
   }
 
   // ==========================================
@@ -207,6 +223,140 @@
     // Enable check button
     document.getElementById('btn-check').removeAttribute('disabled');
     document.getElementById('availability-result').classList.add('hidden');
+
+    // Load weekly view
+    initWeeklyNavigation();
+    loadWeeklyView();
+  }
+
+  function initWeeklyNavigation() {
+    const today = new Date();
+    // Set to previous Monday
+    const day = today.getUTCDay();
+    const diff = today.getUTCDate() - day + (day === 0 ? -6 : 1);
+    const monday = new Date(today.setUTCDate(diff));
+    monday.setUTCHours(0, 0, 0, 0);
+
+    APP.minWeekStart = new Date(monday);
+    APP.currentWeekStart = new Date(monday);
+    
+    // Max week is current + 2 weeks
+    const max = new Date(monday);
+    max.setUTCDate(max.getUTCDate() + 14);
+    APP.maxWeekStart = max;
+    
+    document.getElementById('weekly-view-section').classList.remove('hidden');
+  }
+
+  function navigateWeek(direction) {
+    const newStart = new Date(APP.currentWeekStart);
+    newStart.setUTCDate(newStart.getUTCDate() + (direction * 7));
+
+    if (newStart < APP.minWeekStart || newStart > APP.maxWeekStart) return;
+
+    APP.currentWeekStart = newStart;
+    loadWeeklyView();
+  }
+
+  async function loadWeeklyView() {
+    if (!APP.selectedResource || !APP.currentWeekStart) return;
+
+    const gridEl = document.getElementById('weekly-grid');
+    const rangeEl = document.getElementById('weekly-date-range');
+    const prevBtn = document.getElementById('btn-prev-week');
+    const nextBtn = document.getElementById('btn-next-week');
+
+    // Update buttons
+    prevBtn.disabled = APP.currentWeekStart <= APP.minWeekStart;
+    nextBtn.disabled = APP.currentWeekStart >= APP.maxWeekStart;
+
+    // Update range text
+    const end = new Date(APP.currentWeekStart);
+    end.setUTCDate(end.getUTCDate() + 4);
+    
+    const formatDate = (dateObj) => {
+        const parts = dateObj.toISOString().split('T')[0].split('-');
+        return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    };
+    
+    rangeEl.innerText = `${formatDate(APP.currentWeekStart)} - ${formatDate(end)}`;
+
+    gridEl.innerHTML = '<div class="loading-spinner"></div>';
+
+    try {
+      const data = await apiCall('getWeeklyStatus', [{
+        resourceId: APP.selectedResource.id,
+        startDate: APP.currentWeekStart.toISOString().split('T')[0]
+      }]);
+      renderWeeklyGrid(data);
+    } catch (e) {
+      gridEl.innerHTML = `<p class="hint" style="color:red">Error: ${e.message}</p>`;
+    }
+  }
+
+  function renderWeeklyGrid(data) {
+    const gridEl = document.getElementById('weekly-grid');
+    gridEl.innerHTML = '';
+
+    const slots = ["08:00-09:00", "09:00-10:00", "10:00-11:00", "11:00-12:00", "12:00-13:00", "13:00-14:00", "14:00-15:00"];
+    const dayLabels = ["Dl", "Dt", "Dc", "Dj", "Dv"];
+    const dates = Object.keys(data).sort();
+
+    // 1. Headers
+    gridEl.appendChild(createCell('Franja', 'grid-header-cell'));
+    dates.forEach((date, i) => {
+      // Format date as dd/mm/aaaa
+      const parts = date.split('-');
+      const formattedDate = `${parts[2]}/${parts[1]}/${parts[0]}`;
+      const label = `${dayLabels[i]} ${formattedDate}`;
+      gridEl.appendChild(createCell(label, 'grid-header-cell'));
+    });
+
+    // 2. Rows
+    slots.forEach(slot => {
+      gridEl.appendChild(createCell(slot, 'grid-time-cell'));
+      dates.forEach(date => {
+        const info = data[date][slot];
+        const cell = createCell('', `grid-cell ${info.status} ${info.isExpired ? 'expired' : ''}`);
+        
+        let label = '';
+        if (info.status === 'restricted') label = 'Bloquejat';
+        else if (info.status === 'reserved') label = 'Reservat';
+        else if (info.status === 'partial') label = `${info.capacity - info.reservedQty} lliures`;
+        else if (info.status === 'available') label = 'Lliure';
+
+        cell.innerHTML = `
+          <div class="cell-status-dot"></div>
+          <span>${label}</span>
+        `;
+
+        if (!info.isExpired && info.status !== 'restricted' && info.status !== 'reserved') {
+            cell.onclick = () => selectSlot(date, slot);
+        }
+
+        gridEl.appendChild(cell);
+      });
+    });
+  }
+
+  function createCell(text, className) {
+    const div = document.createElement('div');
+    div.className = className;
+    div.innerText = text;
+    return div;
+  }
+
+  function selectSlot(date, slot) {
+    document.getElementById('check-date').value = date;
+    document.getElementById('check-slot').value = slot;
+    
+    // Smooth scroll to form or highlight
+    document.getElementById('check-form').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    
+    // Highlight cells if needed (optional)
+    document.querySelectorAll('.grid-cell').forEach(c => c.classList.remove('selected-cell'));
+    // Find cell and add class (simplified: just trigger check)
+    handleCheckAvailability(new Event('submit'));
   }
 
   async function handleCheckAvailability(e) {
@@ -283,6 +433,10 @@
       if (APP.selectedResource) {
         document.getElementById('check-resource-name').value = APP.selectedResource.name;
       }
+      
+      // Refresh weekly view to show the new reservation
+      loadWeeklyView();
+      
     } catch (error) {
       showToast("Error en la reserva: " + error.message, 'error');
     } finally {
@@ -395,6 +549,8 @@
         showToast("Reserva actualitzada amb èxit!");
         closeEditModal();
         loadMyReservations();
+        // Refresh weekly view too in case the cancelled/edited reservation was for the current resource
+        loadWeeklyView();
       } catch (err) {
         showToast(err.message, 'error');
       } finally {
@@ -412,6 +568,7 @@
       await apiCall('cancelReservation', [id]);
       showToast("Reserva cancel·lada.");
       loadMyReservations();
+      loadWeeklyView();
     } catch (e) {
       showToast("Error en cancel·lar: " + e.message, "error");
     }
@@ -468,6 +625,9 @@
       if (r.type === 'auditorium') typeLabel = 'Saló';
       if (r.type === 'laptop_cart') typeLabel = 'Carro';
 
+      const isActive = r.active === true || String(r.active).toLowerCase() === 'true';
+      const toggleLabel = isActive ? 'Desactiva' : 'Activa';
+
       row.innerHTML = `
       <div class="data-info" style="flex:1;">
         <div class="data-title">${r.name}</div>
@@ -475,7 +635,7 @@
       </div>
       <div style="display:flex; gap:0.5rem; align-items:center;">
         <button class="btn btn-secondary btn-sm" onclick="openEditResource('${r.id}')">Edita</button>
-        <button class="btn btn-secondary btn-sm" onclick="deleteResource('${r.id}')">Desactiva</button>
+        <button class="btn btn-secondary btn-sm" onclick="toggleResourceStatus('${r.id}', ${isActive})">${toggleLabel}</button>
       </div>
     `;
       listEl.appendChild(row);
@@ -669,11 +829,16 @@
     }
   }
 
-  async function deleteResource(id) {
-    if (!confirm("Vols desactivar aquest recurs? (Les reserves històriques es mantindran)")) return;
+  async function toggleResourceStatus(id, currentStatus) {
+    const newStatus = !currentStatus;
+    const actionText = newStatus ? "activar" : "desactivar";
+    
+    if (!confirm(`Vols ${actionText} aquest recurs?`)) return;
+    
     try {
-      await apiCall('adminDeleteResource', [id]);
-      showToast("Recurs desactivat.");
+      // Use the generic update instead of the specific delete endpoint to handle both directions
+      await apiCall('adminUpdateResource', [id, { active: newStatus }]);
+      showToast(`Recurs ${newStatus ? 'activat' : 'desactivat'}.`);
       loadAdminData();
       loadResources();
     } catch (err) {
