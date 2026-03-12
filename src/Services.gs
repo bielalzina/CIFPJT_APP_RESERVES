@@ -415,7 +415,7 @@ const ReservationService = {
         throw new Error(availResult.reason);
       }
       
-      return ReservationsRepo.create({
+      const created = ReservationsRepo.create({
         resourceId: resource.id,
         userEmail: userEmail,
         date: params.date,
@@ -424,6 +424,11 @@ const ReservationService = {
         status: 'active',
         comment: params.comment
       });
+
+      // Send notification
+      NotificationService.sendReservationEmail('create', created, userEmail);
+
+      return created;
     });
   },
 
@@ -490,12 +495,17 @@ const ReservationService = {
         throw new Error(availResult.reason);
       }
       
-      return ReservationsRepo.update(reservationId, {
+      const updated = ReservationsRepo.update(reservationId, {
         date: updateTarget.date,
         timeSlot: updateTarget.timeSlot,
         quantity: updateTarget.quantity,
         comment: updateTarget.comment
       });
+
+      // Send notification
+      NotificationService.sendReservationEmail('update', updated, userEmail);
+
+      return updated;
     });
   },
 
@@ -522,8 +532,65 @@ const ReservationService = {
 
     // Minor concurrency protection: prevent cancelling while another request might be updating it simultaneously
     return ReservationService.executeWithLock_(function() {
-      return ReservationsRepo.delete(reservationId);
+      const deleted = ReservationsRepo.delete(reservationId);
+      
+      // Send notification
+      NotificationService.sendReservationEmail('cancel', existing, userEmail);
+      
+      return deleted;
     });
+  }
+};
+
+
+// ==========================================
+// NOTIFICATION SERVICE
+// ==========================================
+
+const NotificationService = {
+  /**
+   * Sends a confirmation email for a reservation action.
+   * @param {string} action 'create', 'update', or 'cancel'
+   * @param {Object} reservation The reservation object
+   * @param {string} recipientEmail The email address to send to
+   */
+  sendReservationEmail: function(action, reservation, recipientEmail) {
+    if (!recipientEmail) return;
+
+    const resource = ResourcesRepo.getById(reservation.resourceId);
+    const resourceName = resource ? resource.name : 'Recurs Desconegut';
+
+    let subject = '';
+    let body = '';
+
+    const dateStr = reservation.date;
+    const slotStr = reservation.timeSlot;
+
+    switch (action) {
+      case 'create':
+        subject = `Confirmació de Reserva: ${resourceName}`;
+        body = `Hola,\n\nS'ha creat correctament la teva reserva per al recurs "${resourceName}".\n\nDetalls:\n- Data: ${dateStr}\n- Franja: ${slotStr}\n- Quantitat: ${reservation.quantity}\n- Motiu: ${reservation.comment || 'N/A'}\n\nGràcies.`;
+        break;
+      case 'update':
+        subject = `Modificació de Reserva: ${resourceName}`;
+        body = `Hola,\n\nS'ha modificat la teva reserva per al recurs "${resourceName}".\n\nNous detalls:\n- Data: ${dateStr}\n- Franja: ${slotStr}\n- Quantitat: ${reservation.quantity}\n- Motiu: ${reservation.comment || 'N/A'}\n\nGràcies.`;
+        break;
+      case 'cancel':
+        subject = `Cancel·lació de Reserva: ${resourceName}`;
+        body = `Hola,\n\nS'ha cancel·lat la teva reserva per al recurs "${resourceName}" del dia ${dateStr} a la franja ${slotStr}.\n\nGràcies.`;
+        break;
+    }
+
+    try {
+      MailApp.sendEmail({
+        to: recipientEmail,
+        subject: `[Reserves CIFP JT] ${subject}`,
+        body: body
+      });
+      console.log(`Email de ${action} enviat a ${recipientEmail}`);
+    } catch (e) {
+      console.error(`Error enviant email de ${action}: ` + e.message);
+    }
   }
 };
 
